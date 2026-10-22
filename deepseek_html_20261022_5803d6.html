@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bian Audio Studio</title>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --panel: #14141a;
+            --card: #1e1e26;
+            --accent: #8b5cf6;
+            --accent-hover: #a78bfa;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: #2e2e3a;
+            --success: #10b981;
+            --success-hover: #059669;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 30px;
+        }
+
+        /* --- POP UP NOTIFIKASI --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-box {
+            background: var(--panel);
+            width: 90%;
+            max-width: 450px;
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            position: relative;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+            text-align: center;
+        }
+        .modal-overlay.show .modal-box {
+            transform: translateY(0);
+        }
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            transition: 0.2s;
+        }
+        .modal-close:hover {
+            color: var(--danger);
+        }
+        .modal-icon {
+            width: 60px; height: 60px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            margin: 0 auto 20px auto;
+        }
+        .modal-icon svg { width: 30px; height: 30px; fill: var(--accent); }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+        .modal-text {
+            font-size: 14px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        .modal-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 100%;
+        }
+        .modal-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        /* --- APP CONTAINER --- */
+        .app-container {
+            background-color: var(--panel);
+            width: 100%;
+            max-width: 1100px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--accent), #6d28d9);
+            padding: 25px 20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 24px; font-weight: 800; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: 13px; opacity: 0.9; margin-top: 5px; }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 25px;
+            padding: 25px;
+        }
+
+        .col-left { display: flex; flex-direction: column; gap: 20px; }
+        .col-right {
+            display: flex; flex-direction: column; gap: 20px;
+            background: rgba(0,0,0,0.1); padding: 20px;
+            border-radius: 12px; border: 1px solid var(--border);
+        }
+
+        /* UPLOAD AREA */
+        .drop-zone {
+            background-color: var(--card); border: 2px dashed var(--border);
+            border-radius: 12px; padding: 30px 20px; text-align: center;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background-color: rgba(139, 92, 246, 0.1); }
+        .drop-zone svg { width: 40px; height: 40px; fill: var(--accent); margin-bottom: 10px; }
+        .drop-zone p { font-size: 14px; color: var(--muted); }
+        .drop-zone span { color: var(--accent); font-weight: bold; }
+        input[type="file"] { display: none; }
+
+        .file-info-box {
+            display: none; background: rgba(139, 92, 246, 0.1);
+            border: 1px solid var(--accent); padding: 12px; border-radius: 8px;
+            text-align: center; font-size: 13px; font-weight: bold; color: var(--accent); word-break: break-all;
+        }
+
+        /* SECTION TITLES */
+        .section-title {
+            font-size: 11px; text-transform: uppercase; color: var(--muted);
+            letter-spacing: 1px; margin-bottom: 10px; font-weight: bold;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* PRESET GRID */
+        .preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .preset-btn {
+            background-color: var(--card); color: var(--text); border: 1px solid var(--border);
+            padding: 10px 5px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s;
+        }
+        .preset-btn:hover { background-color: #2a2a35; }
+        .preset-btn.active { background-color: var(--accent); border-color: var(--accent); color: white; box-shadow: 0 0 10px rgba(139, 92, 246, 0.4); }
+
+        /* CONTROLS & EQUALIZER */
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .control-group { background: var(--card); padding: 12px 15px; border-radius: 10px; border: 1px solid var(--border); }
+        .control-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: bold; }
+        .value-display { color: var(--accent); font-family: monospace; font-size: 13px; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); height: 6px; border-radius: 3px; }
+
+        .eq-panel {
+            background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+            padding: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;
+        }
+        .eq-slider-group { display: flex; flex-direction: column; gap: 5px; }
+        .eq-slider-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: var(--text); }
+        .eq-slider-header span { color: var(--accent); font-family: monospace; }
+
+        /* TOMBOL PROSES */
+        .process-btn {
+            width: 100%; padding: 16px; background: linear-gradient(135deg, var(--accent), #6d28d9);
+            color: white; border: none; border-radius: 10px; font-weight: bold; font-size: 15px;
+            cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+        .process-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4); }
+        .process-btn:disabled { background: var(--card); color: var(--muted); cursor: not-allowed; box-shadow: none; }
+
+        /* RESULT CARD & LIBRARY */
+        .result-section {
+            display: none; background: var(--card); border: 1px solid var(--success);
+            border-radius: 12px; padding: 20px; box-shadow: 0 8px 25px rgba(16, 185, 129, 0.15);
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .result-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .result-header svg { width: 24px; height: 24px; fill: var(--success); }
+        .result-title { font-size: 14px; color: var(--text); font-weight: bold; }
+
+        /* CUSTOM PLAYER */
+        .custom-player { background: #121218; border-radius: 10px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border); }
+        .player-controls { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+        .play-pause-btn {
+            background: var(--accent); border: none; border-radius: 50%;
+            width: 44px; height: 44px; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            transition: 0.2s; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
+        }
+        .play-pause-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+        .play-pause-btn svg { width: 20px; height: 20px; fill: white; }
+
+        .progress-container { flex-grow: 1; display: flex; flex-direction: column; gap: 5px; }
+        .progress-bar-bg { width: 100%; height: 6px; background: #2e2e3a; border-radius: 3px; cursor: pointer; position: relative; overflow: hidden; }
+        .progress-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 3px; transition: width 0.1s linear; }
+        .time-display { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: monospace; }
+
+        .download-btn {
+            width: 100%; padding: 14px; background-color: var(--success); color: white;
+            border: none; border-radius: 8px; font-weight: bold; font-size: 14px;
+            cursor: pointer; transition: 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .download-btn:hover { background-color: var(--success-hover); transform: translateY(-2px); }
+        .download-btn svg { width: 18px; height: 18px; fill: white; }
+
+        /* LIBRARY (RIWAYAT) */
+        .library-section {
+            margin-top: 20px; border-top: 1px solid var(--border); padding-top: 15px;
+        }
+        .library-list { display: flex; flex-direction: column; gap: 10px; max-height: 200px; overflow-y: auto; padding-right: 5px; }
+        .lib-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--card); padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+        }
+        .lib-name { font-size: 13px; font-weight: bold; color: var(--text); flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lib-actions { display: flex; gap: 8px; }
+        .lib-btn {
+            background: var(--panel); border: 1px solid var(--border); color: var(--text);
+            width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            transition: 0.2s; text-decoration: none;
+        }
+        .lib-btn:hover { background: var(--accent); color: white; }
+        .lib-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+        .status-bar { text-align: center; font-size: 12px; color: var(--muted); margin-top: 15px; font-weight: bold; }
+
+        @media (max-width: 850px) {
+            .main-grid { grid-template-columns: 1fr; }
+            body { padding: 10px; }
+            .app-container { border-radius: 12px; }
+            .header { padding: 20px 15px; }
+            .header h1 { font-size: 20px; }
+            .main-grid { padding: 15px; gap: 15px; }
+            .col-right { padding: 15px; }
+            .preset-btn { font-size: 12px; }
+            .eq-panel { grid-template-columns: 1fr; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- POP UP WELCOME -->
+<div class="modal-overlay" id="welcomeModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal()">X</button>
+        <div class="modal-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+        </div>
+        <div class="modal-title">Terima Kasih!</div>
+        <div class="modal-text">
+            Terima kasih sudah menggunakan sistem ini. Sistem ini <strong>gratis 100%</strong> untuk kamu yang ingin bypass audio/convert audio untuk Roblox. Gunakan sebaik mungkin.
+        </div>
+        <button class="modal-btn" onclick="closeModal()">Mulai Gunakan</button>
+    </div>
+</div>
+
+<div class="app-container">
+    <div class="header">
+        <h1>BIAN AUDIO STUDIO</h1>
+        <p>Convert, Speed Change & Equalizer</p>
+    </div>
+
+    <div class="main-grid">
+        <!-- KOLOM KIRI -->
+        <div class="col-left">
+            
+            <div>
+                <!-- UPLOAD FILE -->
+                <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    <p>Klik atau tarik file <span>Audio</span> ke sini</p>
+                    <input type="file" id="fileInput" accept="audio/*">
+                </div>
+
+                <div class="file-info-box" id="fileInfoBox"></div>
+            </div>
+
+            <!-- RESULT PREVIEW -->
+            <div class="result-section" id="resultSection">
+                <div class="result-header">
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    <div class="result-title">Audio Berhasil Diproses</div>
+                </div>
+                
+                <div class="custom-player">
+                    <div class="player-controls">
+                        <button class="play-pause-btn" id="playPauseBtn">
+                            <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <svg id="pauseIcon" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        </button>
+                        <div class="progress-container">
+                            <div class="progress-bar-bg" id="progressBarBg">
+                                <div class="progress-bar-fill" id="progressBarFill"></div>
+                            </div>
+                            <div class="time-display">
+                                <span id="currentTime">0:00</span>
+                                <span id="durationTime">0:00</span>
+                            </div>
+                        </div>
+                    </div>
+                    <audio id="audioPreview" style="display: none;"></audio>
+                </div>
+
+                <button class="download-btn" id="downloadBtn">
+                    <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    DOWNLOAD MP3
+                </button>
+            </div>
+
+            <!-- LIBRARY (RIWAYAT PERMANEN) -->
+            <div class="library-section">
+                <div class="section-title">
+                    Recent Conversions
+                    <span id="clearLibBtn" style="cursor:pointer; color:#ef4444; font-size:10px;">Clear All</span>
+                </div>
+                <div class="library-list" id="libraryList">
+                    <!-- Item riwayat bakal masuk ke sini dari IndexedDB -->
+                </div>
+            </div>
+            
+            <div id="status" class="status-bar">Menunggu file...</div>
+        </div>
+
+        <!-- KOLOM KANAN -->
+        <div class="col-right">
+            <div>
+                <div class="section-title">Quick Presets</div>
+                <div class="preset-grid">
+                    <button class="preset-btn" onclick="setPreset(1.2, this)">1.2x</button>
+                    <button class="preset-btn" onclick="setPreset(1.5, this)">1.5x</button>
+                    <button class="preset-btn" onclick="setPreset(2.1, this)">2.1x</button>
+                    <button class="preset-btn" onclick="setPreset(2.5, this)">2.5x</button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-header"><label>Custom Speed</label><div class="value-display" id="speedVal">1.0x</div></div>
+                    <input type="range" id="speedRange" min="0.5" max="3" step="0.1" value="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-header"><label>Pitch</label><div class="value-display" id="pitchVal">1.0</div></div>
+                    <input type="range" id="pitchRange" min="0.5" max="2" step="0.1" value="1">
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">Equalizer <span>Bass / Mid / Treble</span></div>
+                <div class="eq-panel">
+                    <div class="eq-slider-group">
+                        <div class="eq-slider-header"><label>Bass</label><span id="bassVal">0 dB</span></div>
+                        <input type="range" id="bassRange" min="-15" max="15" step="1" value="0">
+                    </div>
+                    <div class="eq-slider-group">
+                        <div class="eq-slider-header"><label>Mid</label><span id="midVal">0 dB</span></div>
+                        <input type="range" id="midRange" min="-15" max="15" step="1" value="0">
+                    </div>
+                    <div class="eq-slider-group">
+                        <div class="eq-slider-header"><label>Treble</label><span id="trebleVal">0 dB</span></div>
+                        <input type="range" id="trebleRange" min="-15" max="15" step="1" value="0">
+                    </div>
+                    <div class="eq-slider-group">
+                        <div class="eq-slider-header"><label>Volume</label><span id="volVal">0 dB</span></div>
+                        <input type="range" id="volRange" min="-15" max="15" step="1" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <button class="process-btn" id="convertBtn" disabled>🚀 PROSES AUDIO</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // --- MODAL LOGIC ---
+    window.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('welcomeModal').classList.add('show');
+    });
+
+    function closeModal() {
+        document.getElementById('welcomeModal').classList.remove('show');
+    }
+
+    // --- INISIALISASI INDEXEDDB ---
+    let db;
+    const dbName = "BianAudioLib";
+    const storeName = "conversions";
+
+    const request = indexedDB.open(dbName, 1);
+    request.onerror = (e) => console.error("DB Error", e);
+    request.onsuccess = (e) => {
+        db = e.target.result;
+        loadLibrary();
+    };
+    request.onupgradeneeded = (e) => {
+        db = e.target.result;
+        if (!db.objectStoreNames.contains(storeName)) {
+            db.createObjectStore(storeName, { keyPath: "id", autoIncrement: true });
+        }
+    };
+
+    // --- UI ELEMENTS ---
+    const fileInput = document.getElementById('fileInput');
+    const speedRange = document.getElementById('speedRange');
+    const speedVal = document.getElementById('speedVal');
+    const pitchRange = document.getElementById('pitchRange');
+    const pitchVal = document.getElementById('pitchVal');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusText = document.getElementById('status');
+    const dropZone = document.getElementById('dropZone');
+    const presetBtns = document.querySelectorAll('.preset-btn');
+    const fileInfoBox = document.getElementById('fileInfoBox');
+    
+    const bassRange = document.getElementById('bassRange');
+    const midRange = document.getElementById('midRange');
+    const trebleRange = document.getElementById('trebleRange');
+    const volRange = document.getElementById('volRange');
+    const bassVal = document.getElementById('bassVal');
+    const midVal = document.getElementById('midVal');
+    const trebleVal = document.getElementById('trebleVal');
+    const volVal = document.getElementById('volVal');
+
+    const resultSection = document.getElementById('resultSection');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const audioPreview = document.getElementById('audioPreview');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+    const progressBarBg = document.getElementById('progressBarBg');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const currentTimeText = document.getElementById('currentTime');
+    const durationTimeText = document.getElementById('durationTime');
+    
+    const libraryList = document.getElementById('libraryList');
+    const clearLibBtn = document.getElementById('clearLibBtn');
+
+    let audioBuffer = null;
+    let audioContext = null;
+    let originalFileName = "audio";
+    let finalMp3Url = null;
+
+    // --- UI LOGIC ---
+    speedRange.oninput = () => { speedVal.innerText = speedRange.value + 'x'; presetBtns.forEach(btn => btn.classList.remove('active')); };
+    pitchRange.oninput = () => { pitchVal.innerText = pitchRange.value; };
+
+    const updateEqLabel = (input, label, unit=" dB") => {
+        input.oninput = () => {
+            let val = parseFloat(input.value);
+            let prefix = val > 0 ? "+" : "";
+            label.innerText = prefix + val + unit;
+        };
+    };
+    updateEqLabel(bassRange, bassVal); updateEqLabel(midRange, midVal);
+    updateEqLabel(trebleRange, trebleVal); updateEqLabel(volRange, volVal);
+
+    window.setPreset = (val, btn) => {
+        speedRange.value = val; speedVal.innerText = val + 'x';
+        presetBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active');
+    };
+
+    // --- FILE UPLOAD LOGIC ---
+    async function handleFile(file) {
+        if (!file) return;
+        if (!file.type.startsWith('audio/')) { statusText.innerText = "❌ File bukan audio!"; return; }
+
+        originalFileName = file.name.replace(/\.[^/.]+$/, "");
+        fileInfoBox.style.display = "block";
+        fileInfoBox.innerText = "📁 " + file.name;
+        statusText.innerText = "Membaca file...";
+        
+        resultSection.style.display = "none";
+        if (finalMp3Url) URL.revokeObjectURL(finalMp3Url);
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            statusText.innerText = "✅ File siap diproses!";
+            convertBtn.disabled = false;
+        } catch (err) {
+            statusText.innerText = "❌ File rusak atau format tidak didukung.";
+            console.error(err);
+        }
+    }
+
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+
+    // --- LIBRARY LOGIC (INDEXEDDB) ---
+    function saveToLibrary(name, blob) {
+        if (!db) return;
+        const transaction = db.transaction([storeName], "readwrite");
+        const store = transaction.objectStore(storeName);
+        const record = { name: name, date: new Date().toISOString(), data: blob };
+        
+        store.add(record).onsuccess = () => {
+            loadLibrary();
+        };
+    }
+
+    function loadLibrary() {
+        if (!db) return;
+        libraryList.innerHTML = "";
+        const transaction = db.transaction([storeName], "readonly");
+        const store = transaction.objectStore(storeName);
+        const request = store.openCursor(null, "prev"); 
+        
+        let count = 0;
+        request.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+                const record = cursor.value;
+                const blobUrl = URL.createObjectURL(record.data);
+                
+                const item = document.createElement('div');
+                item.className = 'lib-item';
+                item.innerHTML = `
+                    <div class="lib-name">${record.name}</div>
+                    <div class="lib-actions">
+                        <button class="lib-btn" title="Preview" onclick="loadFromLib('${blobUrl}')">
+                            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                        <a href="${blobUrl}" download="${record.name}_converted.mp3" class="lib-btn" title="Download">
+                            <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                        </a>
+                    </div>
+                `;
+                libraryList.appendChild(item);
+                count++;
+                cursor.continue();
+            } else {
+                if (count === 0) {
+                    libraryList.innerHTML = `<div style="font-size: 12px; color: var(--muted); text-align: center; padding: 10px;">Belum ada riwayat.</div>`;
+                }
+            }
+        };
+    }
+
+    window.loadFromLib = (url) => {
+        audioPreview.src = url;
+        finalMp3Url = url;
+        resultSection.style.display = "block"; 
+        audioPreview.play();
+        statusText.innerText = "✅ Preview dari riwayat!";
+    }
+
+    clearLibBtn.addEventListener('click', () => {
+        if(confirm("Hapus semua riwayat konversi?")) {
+            const transaction = db.transaction([storeName], "readwrite");
+            const store = transaction.objectStore(storeName);
+            store.clear().onsuccess = () => loadLibrary();
+        }
+    });
+
+    // --- PROSES LOGIC ---
+    convertBtn.addEventListener('click', async () => {
+        if (!audioBuffer) return;
+
+        convertBtn.disabled = true;
+        statusText.innerText = "Memproses audio...";
+        resultSection.style.display = "none";
+        
+        audioPreview.pause(); audioPreview.currentTime = 0; updatePlayPauseIcon(false);
+        await new Promise(r => setTimeout(r, 50));
+
+        const speed = parseFloat(speedRange.value);
+        const pitch = parseFloat(pitchRange.value);
+        const bass = parseFloat(bassRange.value);
+        const mid = parseFloat(midRange.value);
+        const treble = parseFloat(trebleRange.value);
+        const volume = parseFloat(volRange.value);
+
+        const newLength = Math.round(audioBuffer.length / speed);
+        const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, newLength, audioBuffer.sampleRate);
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.playbackRate.value = speed * pitch;
+
+        const bassFilter = offlineCtx.createBiquadFilter();
+        bassFilter.type = "lowshelf"; bassFilter.frequency.value = 250; bassFilter.gain.value = bass;
+
+        const midFilter = offlineCtx.createBiquadFilter();
+        midFilter.type = "peaking"; midFilter.frequency.value = 1000; midFilter.Q.value = 1; midFilter.gain.value = mid;
+
+        const trebleFilter = offlineCtx.createBiquadFilter();
+        trebleFilter.type = "highshelf"; trebleFilter.frequency.value = 4000; trebleFilter.gain.value = treble;
+
+        const gainNode = offlineCtx.createGain();
+        gainNode.gain.value = Math.pow(10, volume / 20);
+
+        source.connect(bassFilter); bassFilter.connect(midFilter); midFilter.connect(trebleFilter);
+        trebleFilter.connect(gainNode); gainNode.connect(offlineCtx.destination);
+        source.start();
+
+        statusText.innerText = "Merender audio...";
+        const renderedBuffer = await offlineCtx.startRendering();
+
+        statusText.innerText = "Meng-encode ke MP3...";
+        
+        setTimeout(() => {
+            try {
+                const mp3Blob = encodeMP3(renderedBuffer);
+                if (finalMp3Url) URL.revokeObjectURL(finalMp3Url);
+                finalMp3Url = URL.createObjectURL(mp3Blob);
+                
+                audioPreview.src = finalMp3Url;
+                audioPreview.load(); 
+                resultSection.style.display = "block"; 
+                
+                // Simpan ke IndexedDB
+                saveToLibrary(originalFileName, mp3Blob);
+                
+                statusText.innerText = "✅ Selesai! Tersimpan di riwayat.";
+            } catch (err) {
+                statusText.innerText = "❌ Error saat encode MP3.";
+                console.error(err);
+            }
+            convertBtn.disabled = false;
+        }, 100);
+    });
+
+    // --- CUSTOM PLAYER LOGIC ---
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return "0:00";
+        const mins = Math.floor(seconds / 60); const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function updatePlayPauseIcon(isPlaying) {
+        if (isPlaying) { playIcon.style.display = 'none'; pauseIcon.style.display = 'block'; }
+        else { playIcon.style.display = 'block'; pauseIcon.style.display = 'none'; }
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+        if (audioPreview.paused) audioPreview.play(); else audioPreview.pause();
+    });
+
+    audioPreview.addEventListener('play', () => updatePlayPauseIcon(true));
+    audioPreview.addEventListener('pause', () => updatePlayPauseIcon(false));
+    audioPreview.addEventListener('timeupdate', () => {
+        if (audioPreview.duration) {
+            const percent = (audioPreview.currentTime / audioPreview.duration) * 100;
+            progressBarFill.style.width = percent + "%";
+            currentTimeText.innerText = formatTime(audioPreview.currentTime);
+        }
+    });
+    audioPreview.addEventListener('loadedmetadata', () => durationTimeText.innerText = formatTime(audioPreview.duration));
+    progressBarBg.addEventListener('click', (e) => {
+        const rect = progressBarBg.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        if (audioPreview.duration) audioPreview.currentTime = pos * audioPreview.duration;
+    });
+
+    // --- DOWNLOAD LOGIC ---
+    downloadBtn.addEventListener('click', () => {
+        if (!finalMp3Url) return;
+        const a = document.createElement('a');
+        a.style.display = 'none'; a.href = finalMp3Url; a.download = originalFileName + "_converted.mp3"; 
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        statusText.innerText = "✅ File MP3 berhasil di-download!";
+    });
+
+    // --- LAME MP3 ENCODER ---
+    function encodeMP3(audioBuffer) {
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128); 
+        const sampleBlockSize = 1152; const mp3Data = [];
+        const left = audioBuffer.getChannelData(0); const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left;
+        const leftInt16 = new Int16Array(left.length); const rightInt16 = new Int16Array(right.length);
+        for (let i = 0; i < left.length; i++) {
+            leftInt16[i] = Math.max(-1, Math.min(1, left[i])) * 32767;
+            rightInt16[i] = Math.max(-1, Math.min(1, right[i])) * 32767;
+        }
+        for (let i = 0; i < leftInt16.length; i += sampleBlockSize) {
+            const leftChunk = leftInt16.subarray(i, i + sampleBlockSize); const rightChunk = rightInt16.subarray(i, i + sampleBlockSize);
+            let mp3buf = numChannels === 1 ? mp3encoder.encodeBuffer(leftChunk) : mp3encoder.encodeBuffer(leftChunk, rightChunk);
+            if (mp3buf.length > 0) mp3Data.push(mp3buf);
+        }
+        const endBuf = mp3encoder.flush(); if (endBuf.length > 0) mp3Data.push(endBuf);
+        return new Blob(mp3Data, { type: "audio/mp3" });
+    }
+</script>
+
+</body>
+</html>
